@@ -13,6 +13,7 @@ CREATE TABLE danh_muc (
 CREATE TABLE nguoi_dung (
     id_nguoi_dung UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email TEXT NOT NULL UNIQUE CHECK (email LIKE '%@husc.edu.vn'),
+    mat_khau TEXT NOT NULL, -- Cột mới thêm vào
     so_dien_thoai TEXT,
     facebook_link TEXT,
     vai_tro TEXT CHECK (vai_tro IN ('sinh_vien', 'bao_ve', 'admin')) NOT NULL,

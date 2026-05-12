@@ -1,0 +1,11 @@
+# Chặn tất cả node_modules ở mọi cấp độ
+node_modules/
+**/node_modules/
+
+# Chặn các file build và rác khác
+dist/
+build/
+.env
+*.log
+.vscode/
+*.md
