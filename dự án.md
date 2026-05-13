@@ -38,7 +38,7 @@ CREATE TABLE bai_dang (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 6. BẢNG YÊU CẦU NHẬN ĐỒ (yeu_cau_nhan_do)
+-- 6. BẢNG YÊU CẦU NHẬN ĐỒ (yeu_cau_nhan_do) - ĐÃ CẬP NHẬT
 CREATE TABLE yeu_cau_nhan_do (
     id_yeu_cau UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     id_bai_dang UUID REFERENCES bai_dang(id_bai_dang) ON DELETE CASCADE,
@@ -46,6 +46,10 @@ CREATE TABLE yeu_cau_nhan_do (
     bang_chung_mo_ta TEXT NOT NULL,
     bang_chung_hinh_anh TEXT,
     is_accepted BOOLEAN DEFAULT FALSE,
+    
+    -- Cột mới được thêm ở đây
+    is_received BOOLEAN DEFAULT FALSE, 
+    
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -59,15 +63,7 @@ CREATE TABLE bao_cao (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 8. BẢNG TIN NHẮN (tin_nhan)
-CREATE TABLE tin_nhan (
-    id_tin_nhan UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    id_bai_dang UUID REFERENCES bai_dang(id_bai_dang),
-    id_nguoi_gui UUID REFERENCES nguoi_dung(id_nguoi_dung),
-    id_nguoi_nhan UUID REFERENCES nguoi_dung(id_nguoi_dung),
-    noi_dung TEXT NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
+
 
 -- 9. BẢNG THÔNG BÁO (thong_bao)
 CREATE TABLE thong_bao (
@@ -138,7 +134,7 @@ IV. Thiết kế hệ thống
 a. Nhóm Lớp Người dùng (User)
 •   Lớp NguoiDung (Lớp cha đại diện chung):
 o   Thuộc tính: Email (định dạng @husc.edu.vn), Thông tin liên hệ (số điện thoại, link Facebook cá nhân - được bảo mật ẩn/hiện tùy ngữ cảnh), Vai trò (Sinh viên/Cán bộ, Bảo vệ/BQL, Quản trị viên).
-o   Phương thức: dangKy(), dangNhap(), dangXuat(), khoiPhucMatKhau(), chatNoiBo() (sử dụng Supabase Realtime).
+o   Phương thức: dangKy(), dangNhap(), dangXuat(), khoiPhucMatKhau() (sử dụng Supabase Realtime).
 •   Hệ thống kế thừa thành 3 lớp con dựa trên vai trò:
 o   Lớp NguoiDung_SinhVien (Sinh viên/Cán bộ): Sở hữu các nghiệp vụ chính như dangTin(), guiYeuCauNhanDo() (Claim), và baoCaoBaiDang() (Report).
 o   Lớp NguoiDung_BaoVe (Bảo vệ/Ban quản lý): Đại diện cho "kho đồ tập trung", có các nghiệp vụ đặc thù như taoBaiDangDaiDien() (cho phòng ban cố định), doiChieuBangChung(), và capNhatTrangThaiHoanTat().
@@ -190,23 +186,22 @@ Actor 1: Người dùng (Sinh viên/Cán bộ HUSC)
 •	UC_6: Đăng tin Nhặt được đồ
 •	UC_7: Gửi yêu cầu nhận đồ - Claim
 •	UC_8: Quản lý yêu cầu nhận đồ (Xem danh sách Claims và Chấp nhận)
-•	UC_9: Cập nhật trạng thái bài đăng (Chuyển thành "Đã bàn giao")
-•	UC_10: Chat nội bộ
-•	UC_11: Báo cáo bài đăng (Report)
+•	UC_9: Cập nhật trạng thái bài đăng (Bàn giao bảo vệ hoặc Đóng bài đăng)
+    UC_10: Báo cáo bài đăng (Report)
 Actor 2: Bảo vệ / Ban quản lý (Security Role)
 
-•	UC_12: Tạo bài đăng FOUND đại diện
-•	UC_13: Đối chiếu bằng chứng sở hữu
-•	UC_14: Cập nhật trạng thái hoàn tất (Đóng bài đăng)
+•	UC_11: Tạo bài đăng FOUND đại diện
+•	UC_12: Đối chiếu bằng chứng sở hữu
+•	UC_13: Cập nhật trạng thái hoàn tất (Đóng bài đăng)
 Actor 3: Quản trị viên (Admin)
 
-•	UC_15: Thêm danh mục đồ vật
-•	UC_16: Sửa danh mục đồ vật
-•	UC_17: Xóa danh mục đồ vật
-•	UC_18: Khóa tài khoản vi phạm
-•	UC_19: Tiếp nhận và xử lý báo cáo (Report)
-•	UC_20: Xóa bài đăng (vi phạm nội quy/lừa đảo)
-•	UC_21: Thống kê và trích xuất báo cáo lịch sử hoạt động
+•	UC_14: Thêm danh mục đồ vật
+•	UC_15: Sửa danh mục đồ vật
+•	UC_16: Xóa danh mục đồ vật
+•	UC_17: Khóa tài khoản vi phạm
+•	UC_18: Tiếp nhận và xử lý báo cáo (Report)
+•	UC_19: Xóa bài đăng (vi phạm nội quy/lừa đảo)
+•	UC_20: Thống kê và trích xuất báo cáo lịch sử hoạt động
 b. Danh sách các Usecase
 CÁC USECASE CON (SUB USECASE)
 
@@ -229,11 +224,11 @@ UC_Sub2: Bảo mật thông tin liên lạc
 •   Tác nhân chính: Hệ thống.
 •   Tác nhân thứ cấp: Không có.
 •   Tiền điều kiện: Có một yêu cầu Claim vừa được người nhặt đồ nhấn "Chấp nhận". Thông tin liên lạc giữa hai bên (người mất và người nhặt) đang bị ẩn.
-•   Hậu điều kiện: Hệ thống mở khóa thông tin liên hệ và hiển thị khung chat nội bộ cho cả hai bên.
+•   Hậu điều kiện: Hệ thống mở khóa thông tin liên hệ (số điện thoại, link Facebook) để hai bên tự chủ động liên lạc với nhau.
 •   Kịch bản chính:
 1.  Hệ thống nhận được xác nhận chuyển trạng thái bài đăng sang "Pending" sau khi người nhặt nhấn "Chấp nhận".
 2.  Hệ thống gỡ bỏ lớp bảo mật ẩn thông tin, cấp quyền hiển thị số điện thoại và link Facebook cá nhân của hai bên cho nhau.
-3.  Hệ thống đồng thời kích hoạt hiển thị khung Chat nội bộ (được tích hợp qua Supabase Realtime) để hai người dùng có thể trao đổi trực tiếp trên nền tảng web mà không sợ lộ thông tin ra bên ngoài. Kết thúc use case.
+3.  Kết thúc use case. (Người dùng sẽ tự liên hệ qua điện thoại hoặc Facebook đã được hiển thị).
 UC_Sub3: Đồng bộ phân quyền
 •   Mô tả ngắn gọn: Do hệ thống dùng nền tảng Backend Node.js thay vì hoàn toàn dùng Supabase Auth, hệ thống tự động khởi tạo Custom JWT (JSON Web Tokens) để nhận diện người dùng và cấp quyền chính xác khi họ giao tiếp qua khung chat hoặc chạy các kịch bản ngầm.
 •   Tác nhân chính: Hệ thống (Backend Node.js).
@@ -244,7 +239,7 @@ UC_Sub3: Đồng bộ phân quyền
 1.  Sau khi người dùng đăng nhập hợp lệ, Backend Node.js tiếp nhận thông tin người dùng.
 2.  Backend tiến hành tạo ra các Custom JWT chứa định danh và vai trò tương ứng, đảm bảo tương thích với chuẩn của Supabase.
 3.  Hệ thống gắn Custom JWT này vào phiên đăng nhập của người dùng.
-4.  Nhờ token này, khi người dùng sử dụng hệ thống Chat nội bộ (Supabase Realtime) hoặc khi gọi kịch bản so khớp ngầm (Backend API (Node.js)), hệ thống luôn nhận diện được người dùng hiện tại là ai và cho phép phân quyền chính xác. Kết thúc use case.
+4.  Nhờ token này, khi người dùng gọi kịch bản so khớp ngầm (Backend API (Node.js)), hệ thống luôn nhận diện được người dùng hiện tại là ai và cho phép phân quyền chính xác. Kết thúc use case.
 NHÓM USE CASE CHUNG
 
 UC_1: Đăng ký và Xác nhận Email
@@ -355,51 +350,44 @@ UC_7: Gửi yêu cầu nhận đồ (Claim)
 o   4a. Thiếu bằng chứng sở hữu: Người dùng cố tình gửi yêu cầu nhưng không tải lên hình ảnh cũng như không nhập bất kỳ mô tả đặc điểm nhận dạng nào. Hệ thống sẽ chặn luồng thực thi, hiển thị cảnh báo đỏ và yêu cầu người dùng bắt buộc phải cung cấp bằng chứng sở hữu để làm cơ sở đối chiếu trước khi cho phép gửi đi.
 
 UC_8: Quản lý yêu cầu nhận đồ (Chấp nhận Claim)
-•   Mô tả ngắn gọn: Người nhặt được đồ sau khi nhận được thông báo có người nhận đồ, sẽ tiến hành xem xét danh sách các yêu cầu (Claims), đối chiếu bằng chứng sở hữu và nhấn "Chấp nhận" cho người có bằng chứng đúng nhất. Khi đó, hệ thống sẽ gỡ bỏ cơ chế ẩn danh và kích hoạt khung chat để hai bên trao đổi.
+•   Mô tả ngắn gọn: Người nhặt được đồ sau khi nhận được thông báo có người nhận đồ, sẽ tiến hành xem xét danh sách các yêu cầu (Claims), đối chiếu bằng chứng sở hữu và nhấn "Chấp nhận" cho người có bằng chứng đúng nhất. Khi đó, hệ thống sẽ gỡ bỏ cơ chế ẩn danh để hai bên thấy thông tin liên lạc của nhau.
 •   Tác nhân chính: Người dùng (Người nhặt được đồ).
 •   Tác nhân thứ cấp: Hệ thống.
 •   Tiền điều kiện: Người dùng đang sở hữu một bài đăng "Nhặt được đồ" (Found) trên hệ thống và có ít nhất một người dùng khác đã gửi yêu cầu nhận đồ (Claim) vào bài đăng này.
-•   Hậu điều kiện: Trạng thái bài đăng được cập nhật thành "Pending" (đang chờ nhận đồ). Hệ thống gỡ bỏ lớp bảo mật thông tin liên lạc và cung cấp khung Chat nội bộ để hai bên trao đổi.
+•   Hậu điều kiện: Yêu cầu Claim được đánh dấu là "Accepted". Hệ thống gỡ bỏ lớp bảo mật thông tin liên lạc (SĐT nếu có ) để hai bên tự chủ động liên hệ. Hệ thống chuyển sang trạng thái chờ xác nhận 2 chiều.
 •   Kịch bản chính:
 1.  Hệ thống gửi thông báo đến người nhặt đồ. Người dùng nhấn vào thông báo và xem danh sách các "Claims" đang chờ duyệt.
 2.  Người dùng xem xét và đối chiếu các bằng chứng sở hữu do những người gửi yêu cầu cung cấp (ảnh chụp từ trước hoặc mô tả các đặc điểm nhận dạng ẩn của món đồ).
 3.  Khi xác định được đúng bằng chứng của chủ nhân thực sự, người nhặt đồ nhấn nút "Chấp nhận" yêu cầu đó.
-4.  Hệ thống tiếp nhận thao tác và cập nhật trạng thái bài đăng sang "Pending" (đang chờ nhận đồ).
-5.  <> UC_Sub2: Bảo mật thông tin liên lạc. Hệ thống lập tức gỡ bỏ lớp bảo mật quyền riêng tư (Privacy) trước đó, mở khóa để hiển thị số điện thoại và link Facebook cá nhân của hai bên cho nhau.
-6.  Hệ thống đồng thời kích hoạt và cung cấp một khung Chat nội bộ (được tích hợp thông qua Supabase Realtime) để hai người có thể trao đổi trực tiếp trên nền tảng web về cách giao nhận đồ mà không cần lộ thông tin cá nhân ra ngoài. Kết thúc use case.
+4.  Hệ thống tiếp nhận thao tác, đánh dấu Claim đó là "Đã chấp nhận".
+5.  <> UC_Sub2: Bảo mật thông tin liên lạc. Hệ thống lập tức hiển thị công khai số điện thoại  cá nhân của hai bên( nếu có) cho nhau để họ liên lạc gặp mặt ngoài đời.
+6.  Hệ thống gửi thông báo cho Người Mất rằng yêu cầu của họ đã được chấp nhận. Kết thúc use case.
 •   Kịch bản phụ:
-o   2a. Bằng chứng không thuyết phục: Trong quá trình đối chiếu, nếu người nhặt thấy bằng chứng được cung cấp (vết xước, mật khẩu...) không khớp với tình trạng thực tế của món đồ, họ có thể bỏ qua hoặc từ chối yêu cầu Claim đó để tiếp tục chờ đợi chủ nhân thực sự cung cấp bằng chứng chính xác hơn.
+o   2a. Bằng chứng không thuyết phục: Trong quá trình đối chiếu, nếu người nhặt thấy bằng chứng được cung cấp không khớp với tình trạng thực tế của món đồ, họ có thể bỏ qua yêu cầu Claim đó để tiếp tục chờ đợi người khác.
 
-UC_9: Cập nhật trạng thái bài đăng (Chuyển thành "Đã bàn giao")
-•   Mô tả ngắn gọn: Trong trường hợp người nhặt được đồ không muốn tự giữ món đồ bên mình để chờ chủ nhân đến nhận, họ có thể đem bàn giao món đồ đó cho phòng bảo vệ. Sau đó, họ thực hiện cập nhật trạng thái bài đăng thành "Đã bàn giao" kèm theo ghi chú địa điểm để người mất đồ có thể chủ động đến nhận lại.
-•   Tác nhân chính: Người dùng (Người nhặt được đồ).
+UC_9: Cập nhật trạng thái bài đăng (Xác nhận 2 chiều hoặc Bàn giao bảo vệ)
+•   Mô tả ngắn gọn: Cho phép bài đăng được đóng lại khi món đồ đã về tay chủ cũ. Quy trình áp dụng cơ chế xác nhận 2 chiều (Handshake) đối với người nhặt tự giữ đồ, hoặc bàn giao trách nhiệm cho Bảo vệ.
+•   Tác nhân chính: Người dùng (Người nhặt được đồ HOẶC Người mất đồ).
 •   Tác nhân thứ cấp: Hệ thống.
-•   Tiền điều kiện: Người dùng đã đăng nhập thành công và đang quản lý một bài đăng "Nhặt được đồ" (FOUND) do chính họ tạo trên hệ thống.
-•   Hậu điều kiện: Trạng thái của bài đăng được thay đổi thành "Đã bàn giao", thông tin ghi chú về địa điểm gửi đồ được lưu trữ và hiển thị công khai trên hệ thống.
+•   Tiền điều kiện: Người dùng đang quản lý bài đăng của mình và bài đăng chưa ở trạng thái "Trao trả thành công".
+•   Hậu điều kiện: Bài đăng được đóng lại (Success) hoặc chuyển quyền quản lý cho Bảo vệ (Delivered).
 •   Kịch bản chính:
-1.  Người dùng mang món đồ nhặt được đến nộp/bàn giao tại phòng bảo vệ hoặc ban quản lý của trường.
-2.  Người dùng truy cập vào hệ thống, mở chi tiết bài đăng "Nhặt được đồ" của mình.
-3.  Người dùng chọn chức năng cập nhật trạng thái bài đăng và chuyển sang trạng thái "Đã bàn giao".
-4.  Hệ thống yêu cầu người dùng nhập thêm thông tin chi tiết về vị trí đã bàn giao (ví dụ: "Đã gửi tại phòng bảo vệ tầng 1").
-5.  Người dùng nhấn nút xác nhận cập nhật.
-6.  Hệ thống tiếp nhận thông tin, lưu trạng thái mới vào cơ sở dữ liệu và hiển thị công khai sự thay đổi này lên bài đăng để người mất đồ có thể đọc được. Kết thúc use case.
+1.  Người dùng mở chi tiết bài đăng của chính mình.
+2.  Tùy loại bài đăng, hệ thống hiển thị logic xác thực:
+    - Nếu là bài Mất đồ (LOST): Chủ bài đăng có thể nhấn "Đã tìm thấy đồ" bất cứ lúc nào để đóng bài.
+    - Nếu là bài Nhặt được đồ (FOUND) - Người nhặt tự giữ: Nút "Đã trao trả thành công" ban đầu sẽ bị vô hiệu hóa (disabled).
+    - Nếu là bài Nhặt được đồ (FOUND) - Gửi bảo vệ: Có nút "Bàn giao đồ cho Bảo vệ".
+3.  Quy trình xác nhận 2 chiều cho bài FOUND:
+    - Sau khi gặp mặt trả đồ, Người Mất (Người gửi Claim) vào app bấm nút "Tôi đã nhận lại đồ".
+    - Hệ thống ghi nhận và Mở khóa (enable) nút "Đã trao trả thành công" cho Người Nhặt.
+    - Người Nhặt nhấn nút này để chính thức đóng bài đăng.
+4.  Quy trình Bàn giao bảo vệ:
+    - Người nhặt nhấn "Bàn giao cho bảo vệ" và nhập ghi chú vị trí.
+    - Trạng thái chuyển thành "Delivered". Người nhặt không còn quyền đóng bài đăng này nữa. Trách nhiệm chuyển sang cho Bảo vệ (UC_13).
+5.  Hệ thống cập nhật trạng thái Success vào database và đóng bài đăng. Kết thúc use case.
 •   Kịch bản phụ:
-o   4a. Bỏ trống vị trí bàn giao: Nếu người dùng thay đổi trạng thái sang "Đã bàn giao" nhưng không nhập địa điểm hoặc ghi chú nơi gửi đồ, hệ thống sẽ chặn thao tác cập nhật, hiển thị cảnh báo đỏ và yêu cầu người dùng bắt buộc phải điền thông tin vị trí đã gửi đồ để người mất có cơ sở tìm đến nhận.
-UC_10: Chat nội bộ
-•   Mô tả ngắn gọn: Hai người dùng (người bị mất đồ và người nhặt được đồ) sử dụng khung chat nội bộ tích hợp công nghệ Supabase Realtime để trao đổi trực tiếp trên nền tảng web về cách thức giao nhận lại đồ vật. Tính năng này giúp hai bên dễ dàng liên lạc mà không cần phải lộ thông tin cá nhân (số điện thoại, Facebook) ra ngoài nếu không muốn.
-•   Tác nhân chính: Người dùng (Cả 2 bên: Người mất đồ và Người nhặt đồ).
-•   Tác nhân thứ cấp: Hệ thống (Supabase Realtime).
-•   Tiền điều kiện: Yêu cầu nhận đồ (Claim) đã được người nhặt nhấn "Chấp nhận" thành công, hệ thống đã gỡ bỏ lớp bảo mật ẩn danh ban đầu và cho phép hai người dùng này kết nối với nhau.
-•   Hậu điều kiện: Tin nhắn được gửi đi, đồng bộ và hiển thị tức thời (real-time) trên màn hình của đối phương. Dữ liệu lịch sử chat được lưu lại trong cơ sở dữ liệu.
-•   Kịch bản chính:
-1.  Người dùng (một trong hai bên) truy cập vào hệ thống và mở giao diện khung Chat nội bộ.
-2.  Người dùng nhập nội dung tin nhắn cần trao đổi (ví dụ: thảo luận về thời gian, địa điểm gặp mặt) và nhấn gửi.
-3.  Hệ thống kích hoạt phương thức chatNoiBo() và gọi đến máy chủ Supabase Realtime để truyền tải dữ liệu tin nhắn.
-4.  Dữ liệu tin nhắn được gửi đi và hiển thị tức thời trên khung chat của đối phương theo thời gian thực.
-5.  Hai bên tiếp tục quá trình trao đổi qua lại cho đến khi thống nhất được phương án giao nhận đồ đạc. Kết thúc use case.
-•   Kịch bản phụ:
-o   3a. Lỗi gián đoạn kết nối: Nếu trong quá trình nhắn tin mà hệ thống mạng của một trong hai bên bị mất kết nối, dịch vụ Supabase Realtime sẽ không thể đồng bộ ngay lập tức. Hệ thống có thể hiển thị cảnh báo tin nhắn chưa được gửi đi và chờ tới khi kết nối mạng được khôi phục để tự động gửi lại.
-UC_11: Báo cáo bài đăng (Report)
+o   3a. Người mất không bấm xác nhận: Nút của người nhặt sẽ tiếp tục bị khóa. Người nhặt có thể liên hệ nhắc nhở hoặc báo cáo Admin nếu đã trả đồ mà đối phương cố tình không bấm.
+UC_10: Báo cáo bài đăng (Report)
 •   Mô tả ngắn gọn: Khi tham gia hệ thống, nếu người dùng phát hiện các bài đăng có dấu hiệu lừa đảo, spam hoặc chứa nội dung nhạy cảm, họ có quyền gửi báo cáo (Report) về bài đăng đó để ban quản trị (Admin) tiến hành hậu kiểm và xử lý.
 •   Tác nhân chính: Người dùng (Sinh viên/Cán bộ HUSC).
 •   Tác nhân thứ cấp: Hệ thống.
@@ -416,7 +404,7 @@ UC_11: Báo cáo bài đăng (Report)
 o   3a. Bỏ trống lý do báo cáo: Nếu người dùng nhấn gửi mà không chọn hoặc không nhập bất kỳ lý do nào, hệ thống sẽ ngăn chặn thao tác, hiển thị cảnh báo đỏ và yêu cầu người dùng bắt buộc phải cung cấp lý do vi phạm để làm cơ sở cho Admin xử lý sau này.
 NHÓM USE CASE CỦA BẢO VỆ / BAN QUẢN LÝ
 
-UC_12: Tạo bài đăng FOUND đại diện
+UC_11: Tạo bài đăng FOUND đại diện
 •   Mô tả ngắn gọn: Nhóm Bảo vệ/Ban quản lý đóng vai trò là "Kho đồ tập trung" của trường. Khi có sinh viên nhặt được đồ nhưng không muốn tự giữ mà đem nộp lại, Bảo vệ sẽ tiếp nhận và sử dụng quyền đặc thù để tạo các bài đăng thông báo (FOUND) lên hệ thống dưới danh nghĩa của một tổ chức/phòng ban cố định (ví dụ: "Phòng Bảo vệ Nhà A" hoặc "Văn phòng Đoàn").
 •   Tác nhân chính: Bảo vệ / Ban quản lý (Security Role).
 •   Tác nhân thứ cấp: Hệ thống.
@@ -432,7 +420,7 @@ UC_12: Tạo bài đăng FOUND đại diện
 7.  Hệ thống tiếp nhận, lưu dữ liệu và hiển thị bài đăng lên bảng tin chung. Kết thúc use case.
 •   Kịch bản phụ:
 o   5a. Bỏ sót thông tin quan trọng: Nếu Bảo vệ vô tình để trống phân loại đồ vật hoặc thiếu thông tin nơi lưu giữ, hệ thống sẽ tạm thời chặn thao tác đăng bài, hiển thị cảnh báo đỏ và yêu cầu bổ sung thông tin để người mất đồ có cơ sở tìm đến nhận.
-UC_13: Đối chiếu bằng chứng sở hữu
+UC_12: Đối chiếu bằng chứng sở hữu
 •   Mô tả ngắn gọn: Khi có sinh viên đến trực tiếp "kho đồ tập trung" (phòng bảo vệ/ban quản lý) để xin nhận lại món đồ thất lạc, Bảo vệ sẽ tiến hành kiểm tra và đối chiếu các bằng chứng sở hữu do sinh viên cung cấp với tình trạng thực tế của món đồ nhằm đảm bảo trao trả đúng người.
 •   Tác nhân chính: Bảo vệ / Ban quản lý (Security Role).
 •   Tác nhân thứ cấp: Hệ thống.
@@ -446,11 +434,11 @@ UC_13: Đối chiếu bằng chứng sở hữu
 5.  Nếu bằng chứng hoàn toàn trùng khớp (ví dụ: mở khóa điện thoại thành công, đúng vết xước), bảo vệ xác nhận đúng chủ nhân và tiến hành bàn giao đồ. Kết thúc use case.
 •   Kịch bản phụ:
 o   4a. Bằng chứng không trùng khớp hoặc có dấu hiệu gian lận: Trong quá trình đối chiếu, nếu sinh viên mô tả sai các đặc điểm ẩn hoặc không thể mở khóa thiết bị, Bảo vệ sẽ từ chối yêu cầu bàn giao đồ để đảm bảo an toàn tài sản và yêu cầu sinh viên cung cấp bằng chứng khác chính xác hơn.
-UC_14: Cập nhật trạng thái hoàn tất (Đóng bài đăng)
+UC_13: Cập nhật trạng thái hoàn tất (Đóng bài đăng)
 •   Mô tả ngắn gọn: Sau khi xác minh bằng chứng trùng khớp và bàn giao món đồ thất lạc lại cho đúng chủ nhân, Bảo vệ/Ban quản lý sẽ thực hiện cập nhật trạng thái bài đăng thành "Trao trả thành công". Việc này giúp hệ thống chính thức khép lại bài đăng và lưu trữ lịch sử để phục vụ công tác báo cáo sau này.
 •   Tác nhân chính: Bảo vệ / Ban quản lý (Security Role).
 •   Tác nhân thứ cấp: Hệ thống.
-•   Tiền điều kiện: Quá trình đối chiếu bằng chứng sở hữu (UC_12) đã diễn ra thành công và Bảo vệ đã tiến hành bàn giao thực tế món đồ cho sinh viên.
+•   Tiền điều kiện: Quá trình đối chiếu bằng chứng sở hữu (UC_11) đã diễn ra thành công và Bảo vệ đã tiến hành bàn giao thực tế món đồ cho sinh viên.
 •   Hậu điều kiện: Bài đăng chuyển trạng thái sang "Trao trả thành công" và được đóng lại hoàn toàn. Dữ liệu lịch sử của phiên trao trả được hệ thống ghi nhận để phục vụ việc trích xuất báo cáo thống kê định kỳ.
 •   Kịch bản chính:
 1.  Sau khi sinh viên nhận lại đồ thành công, Bảo vệ truy cập vào hệ thống và mở chi tiết bài đăng FOUND đại diện tương ứng.
@@ -463,7 +451,7 @@ UC_14: Cập nhật trạng thái hoàn tất (Đóng bài đăng)
 o   2a. Lỗi kết nối khi cập nhật: Trong lúc bảo vệ nhấn xác nhận hoàn tất, nếu hệ thống gặp sự cố mạng hoặc lỗi máy chủ, hệ thống sẽ hiển thị thông báo lỗi cập nhật và giữ nguyên trạng thái cũ của bài đăng, đồng thời yêu cầu bảo vệ thử lại thao tác khi đường truyền ổn định.
 
 NHÓM USE CASE CỦA QUẢN TRỊ VIÊN (ADMIN)
-UC_15: Thêm danh mục đồ vật
+UC_14: Thêm danh mục đồ vật
 •   Mô tả ngắn gọn: Quản trị viên (Admin) tạo thêm các phân loại danh mục mới vào hệ thống (ví dụ: Điện thoại, Ví tiền, Giấy tờ, Chìa khóa...) nhằm cung cấp các tùy chọn để người dùng phân loại rõ ràng các đồ vật khi họ tạo bài đăng mất đồ hoặc nhặt được đồ,.
 •   Tác nhân chính: Quản trị viên (Admin).
 •   Tác nhân thứ cấp: Hệ thống.
@@ -481,7 +469,7 @@ UC_15: Thêm danh mục đồ vật
 o   4a. Bỏ trống tên danh mục: Nếu Quản trị viên nhấn xác nhận nhưng không nhập tên, hệ thống sẽ ngăn chặn luồng thực thi, hiển thị cảnh báo đỏ và yêu cầu bắt buộc phải điền tên danh mục.
 o   4b. Trùng lặp danh mục: Nếu tên danh mục Quản trị viên vừa nhập đã tồn tại trong cơ sở dữ liệu trước đó, hệ thống sẽ báo lỗi "Danh mục này đã tồn tại" và yêu cầu Admin nhập một tên định danh khác.
 
-UC_16: Sửa danh mục đồ vật
+UC_15: Sửa danh mục đồ vật
 •   Mô tả ngắn gọn: Quản trị viên (Admin) tiến hành chỉnh sửa, cập nhật lại tên của một phân loại danh mục đồ vật đã tồn tại trên hệ thống (ví dụ: đổi từ "Giấy tờ" thành "Giấy tờ tùy thân") nhằm giúp việc phân loại bài đăng của người dùng trở nên rõ ràng và tối ưu hơn.
 •   Tác nhân chính: Quản trị viên (Admin).
 •   Tác nhân thứ cấp: Hệ thống.
@@ -499,7 +487,7 @@ UC_16: Sửa danh mục đồ vật
 o   4a. Bỏ trống tên danh mục: Nếu Quản trị viên xóa tên cũ đi nhưng không nhập tên mới và nhấn xác nhận, hệ thống sẽ ngăn chặn thao tác, hiển thị cảnh báo đỏ yêu cầu bắt buộc phải có tên danh mục.
 o   4b. Trùng lặp danh mục: Nếu tên danh mục Quản trị viên vừa chỉnh sửa bị trùng lặp với một tên danh mục khác đã tồn tại trong cơ sở dữ liệu, hệ thống sẽ báo lỗi "Danh mục này đã tồn tại" và yêu cầu Admin chọn một tên khác.
 o   5a. Quản trị viên hủy thao tác: Tại hộp thoại sửa, nếu Quản trị viên nhấn nút "Hủy", hệ thống sẽ đóng hộp thoại và bỏ qua mọi thay đổi, giữ nguyên tên danh mục ban đầu.
-UC_17: Xóa danh mục đồ vật
+UC_16: Xóa danh mục đồ vật
 •   Mô tả ngắn gọn: Quản trị viên (Admin) thực hiện xóa bỏ một phân loại danh mục đồ vật khỏi hệ thống khi danh mục đó bị dư thừa, nhập sai hoặc không còn cần thiết cho việc phân loại bài đăng.
 •   Tác nhân chính: Quản trị viên (Admin).
 •   Tác nhân thứ cấp: Hệ thống.
@@ -515,7 +503,7 @@ UC_17: Xóa danh mục đồ vật
 •   Kịch bản phụ:
 o   3a. Quản trị viên hủy thao tác: Tại bước hộp thoại cảnh báo, nếu Quản trị viên thay đổi quyết định và nhấn nút "Hủy", hệ thống sẽ lập tức đóng hộp thoại, không thực thi lệnh xóa và giữ nguyên danh mục.
 o   4a. Danh mục đang có bài đăng liên kết (Ràng buộc dữ liệu): Trong trường hợp danh mục định xóa đang được gắn cho các bài đăng "Mất đồ" hoặc "Nhặt được đồ" hiện có trên hệ thống, hệ thống sẽ chặn lệnh xóa để bảo vệ toàn vẹn dữ liệu. Hệ thống hiển thị cảnh báo đỏ: "Không thể xóa danh mục đang có bài đăng sử dụng. Vui lòng chuyển bài đăng sang danh mục khác trước khi xóa".
-UC_18: Khóa tài khoản vi phạm
+UC_17: Khóa tài khoản vi phạm
 •   Mô tả ngắn gọn: Quản trị viên (Admin) thực hiện vai trò giám sát toàn bộ nền tảng và tiến hành khóa các tài khoản người dùng (Sinh viên/Cán bộ) nếu phát hiện họ có hành vi vi phạm nội quy của hệ thống (ví dụ: đăng tin lừa đảo, spam độc hại, báo cáo sai sự thật liên tục).
 •   Tác nhân chính: Quản trị viên (Admin).
 •   Tác nhân thứ cấp: Hệ thống.
@@ -532,7 +520,7 @@ UC_18: Khóa tài khoản vi phạm
 •   Kịch bản phụ:
 o   4a. Quản trị viên hủy thao tác: Tại bước hiển thị hộp thoại cảnh báo, nếu Quản trị viên thay đổi quyết định và nhấn nút "Hủy", hệ thống sẽ đóng hộp thoại, không thực thi lệnh khóa và giữ nguyên trạng thái hoạt động bình thường của tài khoản.
 o   2a. Tránh tự khóa tài khoản: Để đảm bảo an toàn vận hành, hệ thống sẽ ẩn chức năng "Khóa" đối với chính tài khoản Admin đang thực hiện phiên đăng nhập hiện tại, ngăn chặn sự cố tự khóa nhầm tài khoản của chính mình.
-UC_19: Tiếp nhận và xử lý báo cáo (Report)
+UC_18: Tiếp nhận và xử lý báo cáo (Report)
 •   Mô tả ngắn gọn: Thông qua cơ chế hậu kiểm (Reporting), Quản trị viên (Admin) sẽ tiếp nhận và xử lý các "Báo cáo (Report)" do người dùng (sinh viên/cán bộ) gửi lên. Quản trị viên sẽ tiến hành kiểm tra nội dung bài đăng bị báo cáo để xác minh các dấu hiệu vi phạm nội quy, lừa đảo, spam hoặc nội dung nhạy cảm, từ đó đưa ra quyết định xử lý phù hợp.
 •   Tác nhân chính: Quản trị viên (Admin).
 •   Tác nhân thứ cấp: Hệ thống.
@@ -551,7 +539,7 @@ o   4a. Báo cáo sai sự thật / Không có vi phạm: Trong quá trình hậ
 
 
 
-UC_20: Xóa bài đăng (vi phạm nội quy/lừa đảo)
+UC_19: Xóa bài đăng (vi phạm nội quy/lừa đảo)
 •   Mô tả ngắn gọn: Quản trị viên (Admin) thực hiện loại bỏ vĩnh viễn các bài đăng (Mất đồ hoặc Nhặt được đồ) khỏi hệ thống khi phát hiện hoặc xác minh được các bài đăng này vi phạm nội quy, có tính chất lừa đảo, spam hoặc chứa nội dung/hình ảnh nhạy cảm.
 •   Tác nhân chính: Quản trị viên (Admin).
 •   Tác nhân thứ cấp: Hệ thống.
@@ -567,8 +555,8 @@ UC_20: Xóa bài đăng (vi phạm nội quy/lừa đảo)
 •   Kịch bản phụ:
 o   4a. Quản trị viên hủy thao tác: Tại bước hiển thị hộp thoại cảnh báo xác nhận xóa, nếu Quản trị viên thay đổi quyết định (ví dụ: muốn kiểm tra lại thông tin) và nhấn nút "Hủy", hệ thống sẽ lập tức đóng hộp thoại, không thực thi lệnh xóa và bài đăng vẫn được giữ nguyên trạng thái hoạt động trên hệ thống.
 
-UC_21: Thống kê và trích xuất báo cáo lịch sử hoạt động
-•   Mô tả ngắn gọn: Quản trị viên (Admin) truy cập hệ thống để thống kê và trích xuất dữ liệu lịch sử về các món đồ đã được chuyển trạng thái "Trao trả thành công". Dữ liệu này được sử dụng để làm các báo cáo thống kê định kỳ nộp cho nhà trường (ví dụ: báo cáo trong tháng hệ thống đã giúp sinh viên tìm lại được bao nhiêu món đồ).
+UC_20: Thống kê và trích xuất báo cáo lịch sử hoạt động
+•   Mô tả ngắn gọn: Quản trị viên (Admin) truy cập hệ thống để thống kê và trích xuất dữ liệu lịch sử về các món đồ được người dùng đăng nhặt được  đã được chuyển trạng thái "Trao trả thành công". Dữ liệu này được sử dụng để làm các báo cáo thống kê định kỳ nộp cho nhà trường (ví dụ: báo cáo trong tháng hệ thống đã giúp sinh viên tìm lại được bao nhiêu món đồ).
 •   Tác nhân chính: Quản trị viên (Admin).
 •   Tác nhân thứ cấp: Hệ thống.
 •   Tiền điều kiện: Quản trị viên đã đăng nhập hợp lệ vào hệ thống và đang thao tác tại Giao diện Quản lý (Admin Dashboard). Hệ thống đã có dữ liệu lưu trữ về các bài đăng đã hoàn tất giao dịch.

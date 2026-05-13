@@ -30,7 +30,7 @@ router.get('/:id', authenticate, async (req, res) => {
         const { id } = req.params;
         const { data, error } = await supabase
             .from('bai_dang')
-            .select('*, danh_muc(ten_danh_muc), nguoi_dung(email, vai_tro)')
+            .select('*, danh_muc(ten_danh_muc), nguoi_dung(email, vai_tro, so_dien_thoai, facebook_link)')
             .eq('id_bai_dang', id)
             .single();
 
@@ -179,36 +179,91 @@ router.put('/:id/status', authenticate, async (req, res) => {
         const { id } = req.params;
         const { trang_thai, ghi_chu_ban_giao } = req.body;
         const userId = req.user.sub;
+        const userRole = req.user.vai_tro;
 
         // Chỉ cho phép pending -> delivered hoặc pending/delivered -> success
         if (!['delivered', 'success'].includes(trang_thai)) {
             return res.status(400).json({ error: 'Trạng thái không hợp lệ' });
         }
 
-        // Kiểm tra quyền (phải là chủ bài đăng)
+        // Kiểm tra quyền (phải là chủ bài đăng hoặc bảo vệ khi bài đã delivered)
         const { data: post, error: fetchError } = await supabase
             .from('bai_dang')
-            .select('id_nguoi_dang')
+            .select('id_nguoi_dang, trang_thai')
             .eq('id_bai_dang', id)
             .single();
 
         if (fetchError || !post) return res.status(404).json({ error: 'Không tìm thấy bài đăng' });
-        if (post.id_nguoi_dang !== userId) return res.status(403).json({ error: 'Bạn không có quyền cập nhật bài đăng này' });
 
-        const updateData = { trang_thai };
-        if (ghi_chu_ban_giao) {
-            updateData.ghi_chu_ban_giao = ghi_chu_ban_giao;
+        // Trường hợp 2: Bàn giao cho bảo vệ (pending -> delivered)
+        if (trang_thai === 'delivered') {
+            if (post.id_nguoi_dang !== userId) {
+                return res.status(403).json({ error: 'Chỉ chủ bài đăng mới được bàn giao cho bảo vệ' });
+            }
+            if (post.trang_thai !== 'pending') {
+                return res.status(400).json({ error: 'Chỉ có thể bàn giao bài đăng đang ở trạng thái pending' });
+            }
+
+            // Tìm tài khoản bảo vệ để chuyển quyền quản lý
+            const { data: securityGuard, error: guardError } = await supabase
+                .from('nguoi_dung')
+                .select('id_nguoi_dung')
+                .eq('vai_tro', 'bao_ve')
+                .limit(1)
+                .single();
+
+            if (guardError || !securityGuard) {
+                return res.status(404).json({ error: 'Không tìm thấy tài khoản bảo vệ' });
+            }
+
+            // Cập nhật trạng thái và chuyển quyền quản lý cho bảo vệ
+            const updateData = { 
+                trang_thai: 'delivered',
+                id_nguoi_dang: securityGuard.id_nguoi_dang, // Chuyển quyền cho bảo vệ
+                ghi_chu_ban_giao: ghi_chu_ban_giao
+            };
+
+            const { data, error } = await supabase
+                .from('bai_dang')
+                .update(updateData)
+                .eq('id_bai_dang', id)
+                .select()
+                .single();
+
+            if (error) throw error;
+            res.status(200).json({ message: 'Đã bàn giao cho bảo vệ. Bài đăng hiện thuộc quyền quản lý của bảo vệ.', data });
         }
+        // Trường hợp: Đánh dấu thành công (delivered/pending -> success)
+        else if (trang_thai === 'success') {
+            // Nếu bài đang ở delivered, chỉ bảo vệ mới được đánh dấu thành công
+            if (post.trang_thai === 'delivered') {
+                if (userRole !== 'bao_ve' && userRole !== 'admin') {
+                    return res.status(403).json({ error: 'Chỉ bảo vệ mới được đánh dấu thành công khi bài đã bàn giao' });
+                }
+                if (post.id_nguoi_dang !== userId) {
+                    return res.status(403).json({ error: 'Bạn không có quyền cập nhật bài đăng này' });
+                }
+            }
+            // Nếu bài đang ở pending, chủ bài đăng được đánh dấu thành công
+            else if (post.trang_thai === 'pending') {
+                if (post.id_nguoi_dang !== userId) {
+                    return res.status(403).json({ error: 'Bạn không có quyền cập nhật bài đăng này' });
+                }
+            }
+            else {
+                return res.status(400).json({ error: 'Trạng thái hiện tại không cho phép đánh dấu thành công' });
+            }
 
-        const { data, error } = await supabase
-            .from('bai_dang')
-            .update(updateData)
-            .eq('id_bai_dang', id)
-            .select()
-            .single();
+            const { data, error } = await supabase
+                .from('bai_dang')
+                .update({ trang_thai: 'success' })
+                .eq('id_bai_dang', id)
+                .select()
+                .single();
 
-        if (error) throw error;
-        res.status(200).json({ message: 'Cập nhật trạng thái thành công', data });
+            if (error) throw error;
+            res.status(200).json({ message: 'Đánh dấu thành công. Bài đăng đã hoàn tất.', data });
+        }
 
     } catch (err) {
         console.error(err);
