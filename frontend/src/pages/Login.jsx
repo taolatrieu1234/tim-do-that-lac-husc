@@ -79,18 +79,20 @@ export default function Login() {
                         <button
                             type="submit"
                             disabled={loading}
-                            className="w-full py-3 px-4 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white rounded-xl font-medium shadow-lg transform hover:-translate-y-0.5 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 focus:ring-offset-slate-900 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="w-full py-3 px-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold rounded-xl transition-all shadow-lg shadow-indigo-900/50 disabled:opacity-70 disabled:cursor-not-allowed transform hover:-translate-y-0.5"
                         >
                             {loading ? 'Đang xử lý...' : 'Đăng Nhập'}
                         </button>
                     </form>
 
-                    <p className="mt-8 text-center text-sm text-slate-400">
-                        Chưa có tài khoản?{' '}
-                        <Link to="/register" className="font-semibold text-indigo-400 hover:text-indigo-300 transition-colors">
-                            Đăng ký ngay
-                        </Link>
-                    </p>
+                    <div className="mt-8 space-y-4 pt-6 border-t border-slate-700/50 text-center">
+                        <p className="text-slate-400 text-sm">
+                            <Link to="/forgot-password" className="text-indigo-400 hover:text-indigo-300 transition-colors">Quên mật khẩu?</Link>
+                        </p>
+                        <p className="text-slate-400 text-sm">
+                            Chưa có tài khoản? <Link to="/register" className="text-indigo-400 hover:text-indigo-300 font-semibold transition-colors">Đăng ký ngay</Link>
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>
